@@ -6,7 +6,7 @@ include("shared.lua")
 
 ENT.WireDebugName = "WIRE_FieldGen"
 
-local EMP_IGNORE_INPUTS = { Kill = true , Pod = true , Eject = true , Lock = true , Terminate = true }
+local EMP_IGNORE_INPUTS = { Kill = true, Pod = true, Eject = true, Lock = true, Terminate = true }
 EMP_IGNORE_INPUTS["Damage Armor"] = true
 EMP_IGNORE_INPUTS["Strip weapons"] = true
 EMP_IGNORE_INPUTS["Damage Health"] = true
@@ -45,7 +45,7 @@ function ENT:Setworkonplayers(v)
 end
 
 function ENT:Setignoreself(v)
-    self.ignoreself = v
+    self.ignoreself = IsTrue(v)
 end
 
 function ENT:Setarc(v)
@@ -65,9 +65,6 @@ function ENT:BuildIgnoreList()
         if !constraints then return end
 
         for _, constr in pairs(constraints) do
-            Msg("\n\n======== Constraint: ========")
-            PrintTable(constr)
-            Msg("\n")
             if constr.Constraint.Type == "Rope" then continue end
             for _, connected_ent_info in pairs(constr.Entity) do
                 if self.ignore[ connected_ent_info.Index ] == connected_ent_info.Entity then continue end
@@ -140,7 +137,7 @@ local wind_and_vortex_inputs = {
     "Active",
     "Range",
     "Multiplier",
-    "Direction.X" ,
+    "Direction.X",
     "Direction.Y",
     "Direction.Z",
     "Direction" }
@@ -177,7 +174,6 @@ function ENT:TriggerInput(iname, value)
             self.direction.z = value
 
         elseif iname == "Direction" then
-            if isvector(value) then Msg("non vector passed!\n") return end
             self.direction = value
 
         elseif iname == "Multiplier" then
@@ -202,9 +198,9 @@ end
 
 function IsTrue(value)
 
-    if  isnumber(value) and math.abs(value) < 0.0001
-        or isstring(value) and value == "0" then
-            return false
+    if isnumber(value) and math.abs(value) < 0.0001 or
+       isstring(value) and value == "0" then
+        return false
     end
 
     return value
@@ -273,14 +269,14 @@ function ENT:Gravity_Logic()
 
     local NewObjs = {}
 
-    for _, contact in pairs(self:GetEverythingInSphere(self:GetPos(), self.range)) do
-        self:Toggle_Prop_Gravity(contact , false)
+    for _, contact in pairs(self:GetEverythingInSphere()) do
+        self:Toggle_Prop_Gravity(contact, false)
         NewObjs[ contact:EntIndex() ] = contact
     end
 
     for index, contact in pairs(self.objects) do
         if (NewObjs[ index ] != contact) then
-            self:Toggle_Prop_Gravity(contact , true)
+            self:Toggle_Prop_Gravity(contact, true)
         end
     end
 
@@ -290,73 +286,82 @@ end
 
 function ENT:Gravity_Disable()
 
-    for _,contact in pairs(self.objects) do
+    for _, contact in pairs(self.objects) do
         self:Toggle_Prop_Gravity(contact, true)
     end
 
 end
 
-function ENT:Slow_Prop(prop , yes_no)
+
+function ENT:EnablePropStasis(prop)
+    if prop:IsNPC() or prop:IsPlayer() then
+
+        if !prop:Alive() and prop:GetRagdollEntity() then
+            local RagDoll = prop:GetRagdollEntity()
+            for x = 1, RagDoll:GetPhysicsObjectCount() do
+                local part = RagDoll:GetPhysicsObjectNum(x)
+
+                part:EnableGravity(false)
+                part:SetDragCoefficient(100 * self.multiplier)
+
+            end
+        end
+
+        prop:SetMoveType(MOVETYPE_FLY)
+        prop:SetMoveCollide(MOVECOLLIDE_FLY_BOUNCE)
+    else
+        prop:SetGravity(0)
+    end
+
+    local adjusted_multiplier = math.max(self.multiplier + 15.1, 15.1)
+    local Mul = 15 / adjusted_multiplier - 1
+    local vel = prop:GetVelocity()
+
+    if prop.AddVelocity then
+        prop:AddVelocity(vel * Mul)
+    else
+        prop:SetVelocity(vel * Mul)
+    end
+end
+
+
+function ENT:DisablePropStasis(prop)
+
+    if prop:IsNPC() or prop:IsPlayer() or
+       !prop:Alive() and prop:GetRagdollEntity() then
+            local RagDoll = prop:GetRagdollEntity()
+            for x = 1, RagDoll:GetPhysicsObjectCount() do
+                local part = RagDoll:GetPhysicsObjectNum(x)
+
+                part:EnableGravity(false)
+                part:SetDragCoefficient(1)
+
+            end
+    end
+
+
+    if prop:IsPlayer() then
+        prop:SetMoveCollide(MOVETYPE_WALK)
+        prop:SetMoveCollide(MOVECOLLIDE_DEFAULT)
+    elseif prop:IsNPC() then
+        prop:SetMoveCollide(MOVETYPE_STEP)
+        prop:SetMoveCollide(MOVECOLLIDE_DEFAULT)
+    else
+        prop:SetGravity(1)
+    end
+
+end
+
+
+function ENT:ApplyPropStasis(prop, active)
 
     if prop:GetMoveType() == MOVETYPE_NONE then return false end
 
     if prop:GetMoveType() != MOVETYPE_VPHYSICS then
-        if yes_no == false then
-
-            if prop:IsNPC() or prop:IsPlayer() then
-
-                if !prop:Alive() and prop:GetRagdollEntity() then
-                    local RagDoll = prop:GetRagdollEntity()
-                    for x = 1,RagDoll:GetPhysicsObjectCount() do
-                        local part = RagDoll:GetPhysicsObjectNum(x)
-
-                        part:EnableGravity(yes_no)
-                        part:SetDragCoefficient(100 * self.multiplier)
-
-                    end
-                end
-
-                prop:SetMoveType(MOVETYPE_FLY)
-                prop:SetMoveCollide(MOVECOLLIDE_FLY_BOUNCE)
-            else
-                prop:SetGravity(0)
-            end
-
-            local adjusted_multiplier = math.max(self.multiplier + 15.1, 15.1)
-            local Mul = 15 / adjusted_multiplier - 1
-            local vel = prop:GetVelocity()
-
-            if prop.AddVelocity then
-                prop:AddVelocity(vel * Mul)
-            else
-                prop:SetVelocity(vel * Mul)
-            end
-
+        if active then
+            self:DisablePropStasis(prop)
         else
-
-
-            if prop:IsNPC() or prop:IsPlayer() or !prop:Alive() and prop:GetRagdollEntity() then
-                local RagDoll = prop:GetRagdollEntity()
-                for x = 1,RagDoll:GetPhysicsObjectCount() do
-                    local part = RagDoll:GetPhysicsObjectNum(x)
-
-                    part:EnableGravity(yes_no)
-                    part:SetDragCoefficient(1)
-
-                end
-            end
-
-
-            if prop:IsPlayer() then
-                prop:SetMoveCollide(MOVETYPE_WALK)
-                prop:SetMoveCollide(MOVECOLLIDE_DEFAULT)
-            elseif prop:IsNPC() then
-                prop:SetMoveCollide(MOVETYPE_STEP)
-                prop:SetMoveCollide(MOVECOLLIDE_DEFAULT)
-            else
-                prop:SetGravity(1)
-            end
-
+            self:EnablePropStasis(prop)
         end
     end
 
@@ -364,10 +369,11 @@ function ENT:Slow_Prop(prop , yes_no)
         for x = 0, prop:GetPhysicsObjectCount() - 1 do
             local part = prop:GetPhysicsObjectNum(x)
 
-            part:EnableGravity(yes_no)
-            if ! yes_no then
+            if active then
+                part:EnableGravity(false)
                 part:SetDragCoefficient(100 * self.multiplier)
             else
+                part:EnableGravity(true)
                 part:SetDragCoefficient(1)
             end
 
@@ -379,8 +385,8 @@ function ENT:Slow_Prop(prop , yes_no)
 
     if !phys:IsValid() then return end
 
-    phys:EnableGravity(yes_no)
-    if yes_no then
+    phys:EnableGravity(active)
+    if active then
         phys:SetDragCoefficient(1)
     else
         phys:SetDragCoefficient(100 * self.multiplier)
@@ -388,18 +394,19 @@ function ENT:Slow_Prop(prop , yes_no)
 
 end
 
+
 function ENT:Static_Logic()
 
     local NewObjs = {}
 
-    for _,contact in pairs(self:GetEverythingInSphere(self:GetPos(), self.range)) do
-        self:Slow_Prop(contact , false)
+    for _, contact in pairs(self:GetEverythingInSphere()) do
+        self:ApplyPropStasis(contact, true)
         NewObjs[ contact:EntIndex() ] = contact
     end
 
     for idx,contact in pairs(self.objects) do
         if (NewObjs[ idx ] != contact) then
-            self:Slow_Prop(contact , true)
+            self:ApplyPropStasis(contact, false)
         end
     end
 
@@ -409,13 +416,13 @@ end
 
 function ENT:Static_Disable()
 
-    for _,contact in pairs(self.objects) do
-        self:Slow_Prop(contact , true)
+    for _, contact in pairs(self.objects) do
+        self:ApplyPropStasis(contact, false)
     end
 
 end
 
-function ENT:PullPushProp(prop , vec)
+function ENT:PullPushProp(prop, vec)
 
     if prop:GetMoveType() == MOVETYPE_NONE then return false end
 
@@ -443,7 +450,7 @@ function ENT:PullPushProp(prop , vec)
 
 end
 
-function ENT:VelModProp(prop , mul)
+function ENT:VelModProp(prop, mul)
 
     if prop:GetMoveType() == MOVETYPE_NONE then return false end
 
@@ -483,12 +490,12 @@ function ENT:Pull_Logic()
 
     local center = self:GetPos()
 
-    for _,contact in pairs(self:GetEverythingInSphere(self:GetPos(), self.range)) do
+    for _, contact in pairs(self:GetEverythingInSphere()) do
 
         local path = center-contact:GetPos()
         local length = math.max(path:Length(), 1e-5)
         path = path * self.multiplier * math.sqrt(math.max(1 - length / self.range, 0)) / length
-        self:PullPushProp(contact , path)
+        self:PullPushProp(contact, path)
 
     end
 
@@ -498,13 +505,11 @@ function ENT:Push_Logic()
 
     local center = self:GetPos()
 
-    for _,contact in pairs(self:GetEverythingInSphere(self:GetPos(), self.range)) do
-
+    for _, contact in pairs(self:GetEverythingInSphere()) do
         local path = contact:GetPos() - center
-        local length = math.max(path:Length(), 1e-5)
-        path = path * self.multiplier / length
-        self:PullPushProp(contact , path)
-
+        local adjusted_path_length = math.max(path:Length(), 1e-5)
+        path = path * self.multiplier / adjusted_path_length
+        self:PullPushProp(contact, path)
     end
 
 end
@@ -514,12 +519,12 @@ function ENT:Push_Logic()
 
     local center = self:GetPos()
 
-    for _,contact in pairs(self:GetEverythingInSphere(self:GetPos(), self.range)) do
+    for _, contact in pairs(self:GetEverythingInSphere()) do
 
         local path = contact:GetPos() - center
         local length = path:Length()
         path = path / length
-        self:PullPushProp(contact , path * self.multiplier)
+        self:PullPushProp(contact, path * self.multiplier)
 
     end
 
@@ -531,12 +536,12 @@ function ENT:Push_Logic()
 
     local center = self:GetPos()
 
-    for _,contact in pairs(self:GetEverythingInSphere(self:GetPos(), self.range)) do
+    for _, contact in pairs(self:GetEverythingInSphere()) do
 
         local path = contact:GetPos() - center
         local length = path:Length()
         path = path * (1.0 / length)
-        self:PullPushProp(contact , path * self.multiplier)
+        self:PullPushProp(contact, path * self.multiplier)
 
     end
 
@@ -547,43 +552,43 @@ function ENT:Wind_Logic()
     local up = self.direction
     up:Normalize()
 
-    for _,contact in pairs(self:GetEverythingInSphere(self:GetPos(), self.range)) do
-        self:PullPushProp(contact , up * self.multiplier)
+    for _, contact in pairs(self:GetEverythingInSphere()) do
+        self:PullPushProp(contact, up * self.multiplier)
     end
 
 end
+
 
 function ENT:IsExcludedFromSphere(obj)
     return  !obj:IsValid()
             or self.ignore[ obj:EntIndex() ] == obj
             or IsFalse(self.workonplayers) and obj:IsPlayer()
             or obj:GetMoveType() == MOVETYPE_NOCLIP
-            or !gamemode.Call("PhysgunPickup", self:GetCreator(), obj)
 end
+
+
+function ENT:IsInArc(obj)
+    if self.arc == 360 then return true
+    elseif self.arc == 0 then return false end
+
+    local direction = obj:GetPos() - self:GetPos()
+    direction:Normalize()
+
+    local upright_vec = self:GetUp()
+    local cos_actual = direction:Dot(upright_vec)
+    local cos_threshold = math.cos(math.rad(self.arc) / 2)
+    return cos_actual > cos_threshold
+end
+
 
 function ENT:GetEverythingInSphere()
 
-    local pos = self:GetPos()
     local objects_in_sphere = {}
 
-    is_valid_angle = self.arc >= 0 and self.arc < 360
-
-    if is_valid_angle then
-        local rgc = math.cos(math.rad(self.arc) / 2)
-        local upvec = self:GetUp()
-
-        for _, obj in ipairs(ents.FindInSphere(pos, self.range)) do
-            if self:IsExcludedFromSphere(obj) then continue end
-
-            local dir = obj:GetPos() - pos
-            dir:Normalize()
-            if dir:Dot(upvec) > rgc then
-                table.insert(objects_in_sphere, obj)
-            end
-        end
-    else
-        for _, obj in ipairs(ents.FindInSphere(pos, self.range)) do
-            if	self:IsExcludedFromSphere(obj) then continue end
+    for _, obj in ipairs(ents.FindInSphere(pos, self.range)) do
+        if self:IsExcludedFromSphere(obj) then
+            continue
+        elseif self:IsInArc(obj) then
             table.insert(objects_in_sphere, obj)
         end
     end
@@ -591,17 +596,18 @@ function ENT:GetEverythingInSphere()
     return objects_in_sphere
 end
 
+
 function ENT:Vortex_Logic()
 
     local up = self.direction
     up:Normalize()
     local center = self:GetPos()
 
-    for _,contact in pairs(self:GetEverythingInSphere()) do
+    for _, contact in pairs(self:GetEverythingInSphere()) do
 
         local path = contact:GetPos() + contact:GetVelocity() - center
         path:Normalize()
-        self:PullPushProp(contact , path:Cross(up) * self.multiplier)
+        self:PullPushProp(contact, path:Cross(up) * self.multiplier)
 
     end
 
@@ -612,7 +618,7 @@ function ENT:Flame_Apply(prop, activate_flame)
     if prop:GetMoveType() == MOVETYPE_NONE then return false end
 
     if activate_flame then
-        prop:Ignite(self.multiplier , 0.0)
+        prop:Ignite(self.multiplier, 0.0)
     else
         prop:Extinguish()
     end
@@ -621,100 +627,83 @@ end
 
 
 function ENT:Flame_Logic()
-
-    for _,contact in pairs(self:GetEverythingInSphere()) do
+    for _, contact in pairs(self:GetEverythingInSphere()) do
         self:Flame_Apply(contact, true)
     end
-
 end
 
 function ENT:Flame_Disable()
+    for _, contact in pairs(self:GetEverythingInSphere()) do
+        self:Flame_Apply(contact, false)
+    end
+end
 
-    for _,contact in pairs(self:GetEverythingInSphere()) do
-        self:Flame_Apply(contact , false)
+
+function ENT:Crush_Apply(prop)
+    prop:TakeDamage(self.multiplier, self:GetOwner())
+end
+
+
+function ENT:Battery_Logic()
+
+    for _, contact in pairs(self:GetEverythingInSphere()) do
+        if contact:IsNPC() or contact:IsPlayer() then
+            self:Battery_Apply(contact, true)
+        end
     end
 
 end
 
-function ENT:Crush_Apply(prop , yes_no)
 
-    if yes_no == true then
-        prop:TakeDamage(self.multiplier , self.pl)
-    end
-
-end
-
-function ENT:Battery_Apply(prop , yes_no)
-
-    local x,maxx
-
+function ENT:Battery_Apply(prop, yes_no)
     if prop.Armor then
-
-        x = prop:Armor() + self.multiplier
-        maxx = prop:GetMaxHealth()
-
-        if (x > maxx) then
-            x = maxx
-        end
-
-        prop:SetArmor(x)
-
+        extra_armor = prop:Armor() + self.multiplier
+        prop:SetArmor(
+            math.min(extra_armor, prop:GetMaxHealth())
+        )
     end
-
 end
 
-function ENT:Health_Apply(prop , yes_no)
 
-    local x,maxx
-
-    if yes_no == true then
-
-        x = prop:Health() + self.multiplier
-        maxx = prop:GetMaxHealth()
-
-        if (x > maxx) then
-            x = maxx
-        end
-
-        prop:SetHealth(x)
-
-    end
-
+function ENT:Health_Apply(prop)
+    extra_health = prop:Health() + self.multiplier
+    prop:SetHealth(
+        math.min(extra_health, prop:GetMaxHealth())
+    )
 end
 
 function ENT:Heal_Logic()
-
-    for _,contact in pairs(self:GetEverythingInSphere()) do
+    for _, contact in pairs(self:GetEverythingInSphere()) do
         if contact:IsNPC() or contact:IsPlayer() then
-            self:Health_Apply(contact , true)
+            self:Health_Apply(contact)
         end
     end
-
 end
+
 
 function ENT:Death_Logic()
 
-    for _,contact in pairs(self:GetEverythingInSphere()) do
+    for _, contact in pairs(self:GetEverythingInSphere()) do
         if contact:IsNPC() or contact:IsPlayer() then
-            self:Crush_Apply(contact , true)
+            self:Crush_Apply(contact)
         end
     end
 
 end
 
+
 function ENT:Crush_Logic()
-
     for _, contact in pairs(self:GetEverythingInSphere()) do
-        self:Crush_Apply(contact , true)
+        self:Crush_Apply(contact)
     end
-
 end
 
-function ENT:EMP_Apply(prop , active)
-    if !prop or !prop.Inputs or !istable(prop.Inputs) then return end
 
-    for k,v in pairs(prop.Inputs) do
-        if EMP_IGNORE_INPUTS[k] == true or !prop.TriggerInput then continue end
+function ENT:EMP_Apply(prop, active)
+    if !prop or !prop.Inputs then return end
+
+    for k, v in pairs(prop.Inputs) do
+        if EMP_IGNORE_INPUTS[k] or !prop.TriggerInput then continue end
 
         local value = prop.Inputs[k].Value
         if v.Type == "NORMAL" then
@@ -732,14 +721,14 @@ function ENT:EMP_Logic()
 
     local NewObjs = {}
 
-    for _,contact in pairs(self:GetEverythingInSphere()) do
-        self:EMP_Apply(contact , true)
+    for _, contact in pairs(self:GetEverythingInSphere()) do
+        self:EMP_Apply(contact, true)
         NewObjs[ contact:EntIndex() ] = contact
     end
 
-    for idx,contact in pairs(self.objects) do
-        if (NewObjs[ idx ] != contact) then
-            self:EMP_Apply(contact , false)
+    for idx, contact in pairs(self.objects) do
+        if NewObjs[ idx ] != contact then
+            self:EMP_Apply(contact, false)
         end
     end
 
@@ -749,29 +738,26 @@ end
 
 function ENT:EMP_Disable()
 
-    for _,contact in pairs(self:GetEverythingInSphere()) do
-        self:EMP_Apply(contact , false)
+    for _, contact in pairs(self:GetEverythingInSphere()) do
+        self:EMP_Apply(contact, false)
     end
 
 end
 
 function ENT:WakeUp(prop)
-    if prop == nil then return end
+    if !prop or prop:GetMoveType() != MOVETYPE_VPHYSICS then return end
 
-    if prop:GetMoveType() == MOVETYPE_VPHYSICS then
-
-        if prop:GetPhysicsObjectCount() > 1 then
-            for x = 0, prop:GetPhysicsObjectCount() - 1 do
-                local part = prop:GetPhysicsObjectNum(x)
-                part:Wake()
-            end
-            return false
+    local physics_objects_count = prop:GetPhysicsObjectCount()
+    if physics_objects_count > 1 then
+        for x = 0, physics_objects_count - 1 do
+            local part = prop:GetPhysicsObjectNum(x)
+            part:Wake()
         end
-
-        local phys = prop:GetPhysicsObject()
-        if (phys:IsValid()) then phys:Wake() end
-
+        return
     end
+
+    local phys = prop:GetPhysicsObject()
+    if (phys:IsValid()) then phys:Wake() end
 end
 
 function ENT:NoCollide_Logic()
@@ -816,10 +802,10 @@ end
 
 function ENT:NoCollide_Disable()
 
-    for Idx,contact in pairs(self.objects) do
+    for Idx, contact in pairs(self.objects) do
         if istable(contact) and contact.obj:IsValid() then
-                contact.obj:SetCollisionGroup(contact.old_group)
-                self:WakeUp(contact.obj)
+            contact.obj:SetCollisionGroup(contact.old_group)
+            self:WakeUp(contact.obj)
         end
     end
 
@@ -827,27 +813,19 @@ function ENT:NoCollide_Disable()
 
 end
 
-function ENT:Battery_Logic()
-
-    for _,contact in pairs(self:GetEverythingInSphere()) do
-        if contact:IsNPC() or contact:IsPlayer() then
-            self:Battery_Apply(contact , true)
-        end
-    end
-
-end
 
 function ENT:Speed_Logic()
-    for _,contact in pairs(self:GetEverythingInSphere()) do
+    for _, contact in pairs(self:GetEverythingInSphere()) do
 
         if (self.multiplier > 0) then
-            self:VelModProp(contact , 1 + self.multiplier)
+            self:VelModProp(contact, 1 + self.multiplier)
         elseif (self.multiplier < 0) then
-            self:VelModProp(contact , -1 + self.multiplier)
+            self:VelModProp(contact, -1 + self.multiplier)
         end
 
     end
 end
+
 
 local LogicFunctions = {
     ["Gravity"] = ENT.Gravity_Logic,
@@ -866,6 +844,7 @@ local LogicFunctions = {
     ["Speed"] = ENT.Speed_Logic
 }
 
+
 function ENT:Think()
 
     if IsTrue(self.ignoreself) then
@@ -881,6 +860,7 @@ function ENT:Think()
     self.BaseClass.Think(self)
 end
 
+
 local LogicDeactivateFunctions = {
     ["Gravity"] = ENT.Gravity_Disable,
     ["Hold"] = ENT.Static_Disable,
@@ -891,6 +871,7 @@ local LogicDeactivateFunctions = {
     ["Speed"] = ENT.Speed_Disable
 }
 
+
 function ENT:Disable()
     if LogicDeactivateFunctions[self.FieldType] then
         LogicDeactivateFunctions[self.FieldType](self)
@@ -898,6 +879,7 @@ function ENT:Disable()
 
     self.BaseClass.Think(self)
 end
+
 
 function ENT:OnRemove()
     self:Disable()

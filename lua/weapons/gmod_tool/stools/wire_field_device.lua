@@ -192,12 +192,12 @@ function TOOL.BuildCPanel(panel)
 	} )
 
 	panel:AddControl( "Checkbox", {
-		Label = "Ignore Self & Connected Props:",
+		Label = "Ignore Self & Connected Props",
 		Description = "Makes the Generator, and its contraption, Immune it its own effects.",
 		Command = "wire_field_device_ignoreself"
 	})
 	panel:AddControl( "Checkbox", {
-		Label = "Affect players:",
+		Label = "Affect players",
 		Description = "Removes Player Immunity to fields.",
 		Command = "wire_field_device_workonplayers"
 	})
@@ -206,8 +206,8 @@ function TOOL.BuildCPanel(panel)
 		Type = "Float",
 		Min = "0.1",
 		Max = "360.0",
-		Label = "Arc Size:",
-		Description = "The Arc( in Degrees ) taht the field is emitted, ( 0 or 360 for circle )" ,
+		Label = "Arc Size",
+		Description = "The Arc (in Degrees) that the field is emitted, ( 0 or 360 for circle )" ,
 		Command = "wire_field_device_arc"
 	})
 
